@@ -33,6 +33,7 @@ The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact
 | [screenshotqa](screenshotqa/screenshotqa.md) | Render a UI and actually look at it — the screenshot-and-review loop, with a portable headless-Chrome helper, data-seeding, responsive + dark-mode checks, and a visual-QA checklist. |
 | [style](style/style.md) | Universal style & usability standards for good, non-generic UI — interaction patterns, forms/tables, navigation, feedback states, accessibility, spacing/motion, light/dark, responsiveness. Brand-agnostic. |
 | [security](security/security.md) | Audit a web app against a practical security checklist — auth/RLS, exposed secrets, signups, storage, IDOR, webhooks, headers, XSS — with live-verification steps and a triage table. |
+| [aesthetic](aesthetic/aesthetic.md) | Pick and fully commit to ONE distinct visual aesthetic from a curated library (Glassmorphism, Swiss, Neobrutalism, Cyberpunk, … plus brand-derived looks). For a deliberate, distinctive vibe when a UI isn't bound to a specific brand. |
 
 ## License
 
