@@ -29,9 +29,10 @@ The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact
 
 | Skill | What it does |
 |---|---|
+| [builder](builder/builder.md) | The build-practice playbook: be self-sufficient (verify/diagnose/fix before asking), build & ship discipline (compile clean, don't build over a live dev server, commit→push→live, version + release notes), and which companion skills to pull in when. |
 | [screenshotqa](screenshotqa/screenshotqa.md) | Render a UI and actually look at it — the screenshot-and-review loop, with a portable headless-Chrome helper, data-seeding, responsive + dark-mode checks, and a visual-QA checklist. |
-
-_More on the way (builder, style, security)._
+| [style](style/style.md) | Universal style & usability standards for good, non-generic UI — interaction patterns, forms/tables, navigation, feedback states, accessibility, spacing/motion, light/dark, responsiveness. Brand-agnostic. |
+| [security](security/security.md) | Audit a web app against a practical security checklist — auth/RLS, exposed secrets, signups, storage, IDOR, webhooks, headers, XSS — with live-verification steps and a triage table. |
 
 ## License
 
