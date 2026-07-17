@@ -116,6 +116,13 @@ CORE PHILOSOPHY: Fight "Model Collapse" and "AI Slop." Do not converge on averag
 - Toggle sort direction on repeated clicks of the same column. Clicking a different column resets direction to ascending.
 - Default sort order should reflect the most useful view: newest-first (Created descending) for activity-driven data; alphabetical for reference data.
 
+### Sticky Column Headers
+
+- **Default for every data table, app-wide** — freeze the column headers so they stay visible as rows scroll; losing the headers mid-scroll forces users to scroll back up to remember what a column is. Put this on the shared table/scroll primitive (one rule, every table), not per-page, so it can't silently regress on a new screen.
+- Implement with `thead th { position: sticky; top: 0; z-index: 1; }` **and an opaque header background** (so body rows don't bleed through as they scroll under it).
+- **Every sticky cell needs an opaque background — including state tints.** Sticky headers/columns have content physically sliding beneath them, so any translucent color applied to them (a row-highlight tint, hover wash, selection color with alpha) lets the underlying cells show through. Composite the translucent tint over the surface color instead: `background: linear-gradient(var(--tint), var(--tint)), var(--surface);`.
+- **Gotcha that silently defeats it:** `position: sticky` attaches to the *nearest scrolling ancestor*. If an intermediate wrapper has `overflow: auto` (common, to give wide tables horizontal scroll) but **no bounded height**, that wrapper becomes the sticky context yet never scrolls vertically — the page scrolls instead and the header scrolls away with it. Fix by giving that scroll box a **bounded height** (e.g. `max-height: calc(100vh - <space above the table>)`) so the table body scrolls *inside* it and the sticky header pins. This is the spreadsheet-standard behavior (Excel/Sheets freeze the header row).
+
 ### Sectioned/Grouped Tables
 
 - Support user-defined sections (groups) within tables. Each section has a collapsible header.
@@ -213,6 +220,15 @@ CORE PHILOSOPHY: Fight "Model Collapse" and "AI Slop." Do not converge on averag
 - Style the confirm button in the danger color for destructive actions.
 - Provide clear cancel and confirm options with descriptive labels ("Delete Item" not just "OK").
 - Never use confirmation for non-destructive actions like saving or editing.
+
+### Exit Transitions (removal feedback)
+
+- When an item leaves a list because the user acted on it — deleted, triaged, completed, moved, filed elsewhere — animate it **out** (a soft fade + height collapse over ~200–300ms) before removing it from the view. An instant disappearance is too fast to perceive: the user is left wondering whether the action registered or where the item went. This is called an **exit transition** (or exit animation) — the counterpart to entrance animations.
+- Collapse the row's height, not just its opacity, so the neighbors slide up smoothly to close the gap instead of snapping into place.
+- Defer the real state change (the optimistic update / removal) until the animation has played — the row must stay mounted while it fades. A small `setTimeout` matching the transition duration is enough.
+- This is the one case where animating already-visible content is correct (see Motion & Interaction, which otherwise animates only *appearing* content).
+- Respect `prefers-reduced-motion`: drop the transition and remove instantly for users who opt out.
+- Implementation tip: a CSS grid wrapper transitioning `grid-template-rows: 1fr → 0fr` (with `overflow: hidden` on the child) animates a height-`auto` collapse with no JS measurement.
 
 ---
 
@@ -399,7 +415,7 @@ Apply colors exclusively through CSS variables so theme switching is automatic.
 - Keep transitions short (200-300ms) with ease-out curves.
 - Use `animation-delay` to stagger the entrance of elements (list items, cards, headings).
 - Prioritize CSS transitions for hover states (transform, filter); avoid JS animations unless complex physics require them.
-- Use subtle entrance animations (fade-in, slide-up) for *appearing* content only — never animate content already visible on screen.
+- Use subtle entrance animations (fade-in, slide-up) for *appearing* content only — never animate content already visible on screen. The one exception is an **exit transition**: animating an item out (fade + height collapse) as it's removed, so the user sees it leave (see Feedback & system status → Exit Transitions).
 - Provide brief, non-disruptive feedback animations (e.g. shake for errors).
 - Respect `prefers-reduced-motion` for anything beyond micro-interactions.
 

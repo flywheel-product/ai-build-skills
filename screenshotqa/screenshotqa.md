@@ -55,6 +55,14 @@ console.log(`wrote ${out} (${w || 1440}x${h || 1000}) from ${base}${path}${selec
 
 **Prefer the selector form — full-page is for compact screens only.** A full-page shot of a screen with large expandable content (a full transcript, a long doc, an infinite list, a deep-linked detail that auto-expands) can be **tens of thousands of px tall** — a multi-MB PNG that's unreviewable at any sane scale. Reserve `""` (full page) for genuinely short screens; otherwise target the component. The selector form is also **more robust on cold loads**: it `waitFor`s the element to actually render, whereas the full-page path only waits a fixed 800ms and can capture mid-render on a cold SPA that chains fetches (e.g. list → detail → analysis). If you must do a full-page shot and it captures too early, bump that settle timeout.
 
+## Auth-gated apps — get a sanctioned session, never bypass the gate
+
+If the app requires sign-in, headless Chrome lands on the login page and every shot is worthless. Plan the auth path BEFORE shooting:
+
+- **Best:** a dedicated QA/test account the prompter created, signed in by injecting its session into localStorage (for Supabase: admin `generate_link` → `POST /auth/v1/verify` with `token_hash` → store the session JSON under `sb-<ref>-auth-token`). OAuth redirect flows usually fail locally because redirect allow-lists only contain production URLs — session injection avoids that.
+- If the app has an **authorization layer beyond sign-in** (an allowlist table, roles), do NOT add accounts to it, patch the check out, or add env-var bypasses on your own authority — that's the prompter's access-control decision. Ask them for a sanctioned path (QA account on the allowlist, or they eyeball the deployed UI).
+- When visual QA is blocked on that decision, say so explicitly in the ship report — don't quietly claim the UI verified, and don't let it silently block the rest of the work.
+
 ## Reach the real state — seed data, don't trust the default
 
 Most bugs hide in populated states, not the empty default. Before shooting:
