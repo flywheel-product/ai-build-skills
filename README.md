@@ -1,6 +1,6 @@
 # AI Build Skills
 
-Portable, tool-agnostic **playbooks for building software well with any AI assistant.** Each skill is a plain-markdown guide that encodes a hard-won build practice — verify your own work, ship cleanly, catch the bugs a human shouldn't have to. They're written to be read by any AI (or any human), and they trigger natively in Claude Code / Claude.ai via a thin adapter.
+Portable, tool-agnostic **playbooks for today's AI builders.** Each skill is a plain-markdown guide that encodes a hard-won practice — verify your own work, ship cleanly, catch the bugs a human shouldn't have to, red-team the deliverable before the room does. They're written to be read by any AI (or any human), and they trigger natively in Claude Code / Claude.ai via a thin adapter.
 
 These are deliberately **generic** — no company's brand, voice, or stack baked in. Use them, fork them, adapt them.
 
