@@ -34,6 +34,7 @@ The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact
 | [style](style/style.md) | Universal style & usability standards for good, non-generic UI — interaction patterns, forms/tables, navigation, feedback states, accessibility, spacing/motion, light/dark, responsiveness. Brand-agnostic. |
 | [security](security/security.md) | Audit a web app against a practical security checklist — auth/RLS, exposed secrets, signups, storage, IDOR, webhooks, headers, XSS — with live-verification steps and a triage table. |
 | [aesthetic](aesthetic/aesthetic.md) | Pick and fully commit to ONE distinct visual aesthetic from a curated library (Glassmorphism, Swiss, Neobrutalism, Cyberpunk, … plus brand-derived looks). For a deliberate, distinctive vibe when a UI isn't bound to a specific brand. |
+| [crew-exec](crew-exec/crew-exec.md) | Red-team an executive deliverable (readout, board deck, proposal) with a fixed 8-persona crew — four hostile executive chairs, a synthesizer, an evidence auditor that traces claims to source transcripts, a narrative/altitude strategist, and a completeness cop. Visible debate → prioritized fix list. |
 
 ## License
 
