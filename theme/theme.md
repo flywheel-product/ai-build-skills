@@ -1,6 +1,6 @@
-# Aesthetic Selector
+# Theme Selector
 
-> This file is the single source of truth for the `aesthetic` skill. Edit it directly —
+> This file is the single source of truth for the `theme` skill. Edit it directly —
 > the skill reads it fresh on every run.
 
 ## How to use this
@@ -8,9 +8,9 @@
 For a given UI request, explicitly **select ONE distinct aesthetic** from the library below and **commit to it fully**. Do not mix incompatible styles. State which one you picked and why it fits, then apply its palette, typography character, shape language, signature motif, motion, and emotional tone throughout.
 
 **How this relates to the other skills:**
-- `aesthetic` chooses the *overall visual vibe* for a project — useful when a UI is **not** bound to a specific brand, or when the user wants a deliberate, distinctive look.
+- `theme` chooses the *overall visual vibe* for a project — useful when a UI is **not** bound to a specific brand, or when the user wants a deliberate, distinctive look.
 - A **brand skill** (if you have one) defines a specific brand's identity. If a project should look like that brand, the brand *is* the aesthetic — use the brand skill instead of picking from this library.
-- `style` is brand-agnostic UX/usability behavior. It composes with whatever aesthetic you pick here: choose the vibe with `aesthetic`, then make it usable, responsive, and accessible with `style`.
+- `style` is brand-agnostic UX/usability behavior. It composes with whatever aesthetic you pick here: choose the vibe with `theme`, then make it usable, responsive, and accessible with `style`.
 
 ---
 
