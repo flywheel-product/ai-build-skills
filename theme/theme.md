@@ -5,7 +5,14 @@
 
 ## How to use this
 
-For a given UI request, explicitly **select ONE distinct aesthetic** from the library below and **commit to it fully**. Do not mix incompatible styles. State which one you picked and why it fits, then apply its palette, typography character, shape language, signature motif, motion, and emotional tone throughout.
+**Step 1 — Did the user name a theme?**
+
+- **No theme named** (e.g. they just typed `/theme`, or said "give it a look"): **do not pick one for them.** Show the full library below, grouped by section (A–F) with each theme's one-line description, and ask which one they want. Wait for their answer before touching any code. You may mark one or two as recommended for the subject, with a one-line reason, but the choice is theirs. If the tool for asking questions caps the number of options, list the whole library in your message and offer the top picks plus an "other" free-text path.
+- **Theme named** (a name from the library, a close paraphrase, or a brand from sections D–F): proceed straight to Step 2.
+
+**Step 2 — Commit.**
+
+Explicitly **select the ONE distinct aesthetic** the user chose from the library below and **commit to it fully**. Do not mix incompatible styles. Restate which one and why it fits, then apply its palette, typography character, shape language, signature motif, motion, and emotional tone throughout.
 
 **How this relates to the other skills:**
 - `theme` chooses the *overall visual vibe* for a project — useful when a UI is **not** bound to a specific brand, or when the user wants a deliberate, distinctive look.

@@ -78,6 +78,7 @@ Builder is the conductor; delegate specialized work to companion skills so each 
 - **User-facing copy → your own voice/copy skill.**
 - **Stack choice, new-app scaffolding, deploy/DB/analytics setup → your own architecture skill.**
 - **Before the first deploy, or before sharing a link publicly → a `security` skill** — treat it as a gate, not a someday.
+- **Creating or restructuring a skill (this one included) → the `skillwriter` skill** (in this collection) — the two-file layout, adapter template, portability rules, and the audit checklist.
 
 ---
 

@@ -53,10 +53,12 @@ export default {
     maxAgeMs: 12 * 3600e3,
     canLogin: () => Boolean(password),
     async isLoggedOut(page) {
-      await page.waitForTimeout(400);
+      // Wait for the app to settle on one of its three states (signed-in shell,
+      // identity picker, password gate) instead of guessing after a fixed delay.
+      await page.locator('main, input[type="password"], h1:has-text("Who are you")').first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
       const u = new URL(page.url());
       if (u.pathname === '/' || u.pathname === '/select-identity') return true;
-      return await page.locator('input[type="password"][placeholder="Camp password"]').count() > 0;
+      return await page.locator('main').count() === 0;
     },
     async login(page, base) {
       await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
