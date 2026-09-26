@@ -278,15 +278,17 @@ if (config.auth && existsSync(statePath)) {
 }
 
 async function ensureAuth(context, page, vpName) {
-  if (!config.auth) return true;
+  // Returns 'ok' (already signed in), 'logged-in' (just signed in — caller must
+  // re-navigate) or false (cannot sign in).
+  if (!config.auth) return 'ok';
   const loggedOut = await config.auth.isLoggedOut(page);
-  if (!loggedOut) return true;
+  if (!loggedOut) return 'ok';
   if (!config.auth.canLogin?.()) return false;
   process.stdout.write(`  [${vpName}] logging in… `);
   const ok = await config.auth.login(page, base);
   console.log(ok ? 'ok' : 'FAILED');
   if (ok) { authState = await context.storageState(); authState.__savedAt = Date.now(); writeFileSync(statePath, JSON.stringify(authState)); }
-  return ok;
+  return ok ? 'logged-in' : false;
 }
 
 for (const vpName of wantViewports) {
@@ -308,10 +310,15 @@ for (const vpName of wantViewports) {
         await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
         if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
         if (!sc.public) {
-          const ok = await ensureAuth(context, page, vpName);
-          if (!ok) { rec.skipped = 'auth'; console.log(`  SKIP ${label} — not signed in (set the auth env vars in mobileqa.config.mjs)`); continue; }
-          await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
-          if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
+          const auth = await ensureAuth(context, page, vpName);
+          if (!auth) { rec.skipped = 'auth'; console.log(`  SKIP ${label} — not signed in (set the auth env vars in mobileqa.config.mjs)`); continue; }
+          if (auth === 'logged-in') {
+            // Only navigate again after an actual login. Never interrupt a page
+            // that is still bootstrapping — some apps treat an aborted session
+            // fetch as "signed out".
+            await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
+            if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
+          }
         }
         if (sc.waitFor) await page.locator(sc.waitFor).first().waitFor({ state: 'visible', timeout: 20000 });
         await page.waitForTimeout(sc.settle ?? config.settle ?? 600);

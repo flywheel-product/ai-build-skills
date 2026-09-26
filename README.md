@@ -12,10 +12,11 @@ Each skill is a folder:
 screenshotqa/
 ├── screenshotqa.md   ← the guide (the real content — readable by any AI or human)
 ├── SKILL.md          ← thin Claude adapter so the skill auto-triggers (points to the .md)
-└── shot.mjs          ← any scripts the skill uses, right in the folder
+├── shot.mjs          ← any scripts the skill uses, right in the folder …
+└── mobileqa.mjs, pre-commit, …   ← … however many it takes (screenshotqa ships eight files)
 ```
 
-The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact. `SKILL.md` is just a ~3-line shim for Claude — strip it away and the skill still works anywhere.
+The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact. `SKILL.md` is just a ~3-line shim for Claude — strip it away and the skill still works anywhere. The full authoring convention — adapter template, footers, sibling references instead of absolute paths, where a skill lives, an audit checklist — is itself a skill: [skillwriter](skillwriter/skillwriter.md).
 
 ## How to use these
 
@@ -35,6 +36,7 @@ The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact
 | [security](security/security.md) | Audit a web app against a practical security checklist — auth/RLS, exposed secrets, signups, storage, IDOR, webhooks, headers, XSS — with live-verification steps and a triage table. |
 | [theme](theme/theme.md) | Pick and fully commit to ONE distinct visual aesthetic from a curated library (Glassmorphism, Swiss, Neobrutalism, Cyberpunk, … plus brand-derived looks). For a deliberate, distinctive vibe when a UI isn't bound to a specific brand. |
 | [crew-exec](crew-exec/crew-exec.md) | Red-team an executive deliverable (readout, board deck, proposal) with a fixed 8-persona crew — four hostile executive chairs, a synthesizer, an evidence auditor that traces claims to source transcripts, a narrative/altitude strategist, and a completeness cop. Visible debate → prioritized fix list. |
+| [skillwriter](skillwriter/skillwriter.md) | How to write a skill to disk: the two-file convention (thin `SKILL.md` adapter + named guide), adapter template and footers, trigger-rich descriptions, sibling references, base+overlay and family patterns, versioning + README + symlink, and an audit checklist. |
 
 ## License
 
