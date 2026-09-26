@@ -7,7 +7,7 @@
 // in-page checks that catch the classic phone bugs a desktop screenshot never
 // shows: horizontal overflow, controls you can't reach (a modal taller than the
 // screen, a submit button under a fixed nav), iOS focus-zoom from <16px inputs,
-// tiny tap targets, content hidden behind fixed bars, missing viewport meta.
+// crowded tiny tap targets, content hidden behind fixed bars, missing viewport meta.
 //
 // Setup (once per repo): npm i -D playwright-core ; copy this file + mobileqa-gate.mjs
 //   into scripts/, add mobileqa.config.mjs at the repo root, add `.mobileqa/` to .gitignore.
@@ -20,6 +20,10 @@
 // Env: MOBILEQA_BASE overrides config.base. Auth secrets come from env, see config.
 // Exit code: 0 = all checks passed (writes .mobileqa/last-pass.json for the commit gate),
 //            1 = at least one FAIL, 2 = suite could not run.
+//
+// Scenario options: { name, path, public?, fresh? (new signed-out context),
+//   waitFor?, actions?: [{click|tap|fill|press|waitFor|wait|evaluate|run(page)}], waitForAfter?,
+//   settle?, noFullPage?, phoneOnly?, desktopOnly?, minWidth?, maxWidth? }
 
 import { chromium } from 'playwright-core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -40,7 +44,7 @@ const only = flag('--only');
 const wantViewports = flag('--viewports')?.split(',') || Object.keys(config.viewports);
 const wantThemes = flag('--themes')?.split(',') || config.themes || ['light'];
 const takeShots = !has('--no-shots');
-const rules = { minTapTarget: 44, hardMinTapTarget: 24, controlFontPx: 16, minTextPx: 11, phoneMaxWidth: 767, ...(config.rules || {}) };
+const rules = { minTapTarget: 44, hardMinTapTarget: 24, controlFontPx: 16, minTextPx: 11, phoneMaxWidth: 767, touchMaxWidth: 1024, ...(config.rules || {}) };
 
 // ---------- helpers ----------
 const shotsDir = join(outDir, 'shots');
@@ -68,7 +72,7 @@ function contextOptions(vp) {
 
 // ---------- the in-page audit ----------
 // Runs inside the page. Returns { findings: [{level, rule, msg, el}], meta }.
-// Kept dependency-free and defensive: every check is wrapped so one throw never
+// Dependency-free and defensive: every check is wrapped so one throw never
 // hides the others.
 async function auditPage(page, { phone, touch, scenario }) {
   return page.evaluate(async ({ rules, phone, touch, scenario }) => {
@@ -90,11 +94,19 @@ async function auditPage(page, { phone, touch, scenario }) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
       const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) return false;
+      if (r.width <= 0 || r.height <= 0) return false;
       if (el.closest('[aria-hidden="true"]')) return false;
       return true;
     }
     const all = () => Array.from(document.querySelectorAll('body *'));
+    // Nearest ancestor that scrolls horizontally (a wide table wrapper).
+    function hScrollAncestor(el) {
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const cs = getComputedStyle(p);
+        if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && p.scrollWidth > p.clientWidth + 1) return p;
+      }
+      return null;
+    }
 
     // Overlay scoping: when a full-viewport fixed layer (modal, drawer, sheet,
     // lightbox) is open, everything under it is *supposed* to be unreachable.
@@ -111,6 +123,7 @@ async function auditPage(page, { phone, touch, scenario }) {
     }
     const overlay = topOverlay();
     const scope = overlay || document.body;
+    const INTERACTIVE = 'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [role="menuitem"], [role="tab"]';
 
     // 1. viewport meta
     try {
@@ -121,19 +134,31 @@ async function auditPage(page, { phone, touch, scenario }) {
       else if (/user-scalable\s*=\s*(no|0)|maximum-scale\s*=\s*1(\.0)?\b/.test(c)) push('warn', 'viewport-meta', `viewport meta disables pinch zoom ("${c}") — an accessibility anti-pattern; fix input font sizes instead.`);
     } catch (e) { push('warn', 'viewport-meta', `check threw: ${e.message}`); }
 
-    // 2. horizontal overflow
+    // 2. horizontal overflow of the page itself
     try {
-      const sw = document.documentElement.scrollWidth, bw = document.body.scrollWidth;
-      const width = Math.max(sw, bw);
+      const width = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
       if (width > vw + 1) {
-        const offenders = all().filter(el => visible(el) && !el.closest('[data-qa-allow-overflow]')).map(el => ({ el, r: el.getBoundingClientRect() }))
+        const offenders = all().filter(el => visible(el) && !el.closest('[data-qa-allow-overflow]') && !hScrollAncestor(el)).map(el => ({ el, r: el.getBoundingClientRect() }))
           .filter(({ el, r }) => r.right > vw + 1 && getComputedStyle(el).position !== 'fixed')
-          // keep the outermost offenders: drop those whose parent is also an offender
           .filter(({ el }, _, arr) => !arr.some(o => o.el !== el && o.el.contains(el)))
           .slice(0, 8);
         push('fail', 'h-overflow', `Page is ${width}px wide in a ${vw}px viewport (horizontal scroll). Widest offenders: ${offenders.map(o => describe(o.el)).join(' | ') || 'n/a'}`);
       }
     } catch (e) { push('warn', 'h-overflow', `check threw: ${e.message}`); }
+
+    // 2b. wide regions that scroll horizontally (tables). Legal, but a phone
+    //     user has to pan; report how bad, and how much a sticky column eats.
+    if (phone) {
+      try {
+        const regions = new Set();
+        for (const el of Array.from(scope.querySelectorAll(INTERACTIVE))) { if (!visible(el)) continue; const c = hScrollAncestor(el); if (c) regions.add(c); }
+        for (const c of regions) {
+          const sticky = Array.from(c.querySelectorAll('*')).find(el => visible(el) && getComputedStyle(el).position === 'sticky' && getComputedStyle(el).left === '0px');
+          const sw = sticky ? Math.round(sticky.getBoundingClientRect().width) : 0;
+          push('warn', 'wide-region', `Horizontal panning required: ${c.scrollWidth}px of content in ${c.clientWidth}px${sw ? `, sticky first column ${sw}px leaves ${c.clientWidth - sw}px to pan in` : ''}. Consider a card layout below md. ${describe(c)}`, c);
+        }
+      } catch (e) { push('warn', 'wide-region', `check threw: ${e.message}`); }
+    }
 
     // 3. controls that trigger iOS focus-zoom (font-size < 16px) — phone widths only
     if (phone) {
@@ -144,22 +169,35 @@ async function auditPage(page, { phone, touch, scenario }) {
       } catch (e) { push('warn', 'control-font', `check threw: ${e.message}`); }
     }
 
-    // 4. tap targets
+    // 4. tap targets. Hard minimum 24px (WCAG 2.5.8) WITH its spacing exception:
+    //    an undersized target passes if a 24px box centred on it touches no other
+    //    target. Undersized + crowded = fail on phones. Under 44px = warn on touch.
     try {
-      const interactive = Array.from(scope.querySelectorAll('a[href], button, input, select, textarea, [role="button"], [role="link"], [role="menuitem"], [role="tab"], [tabindex]:not([tabindex="-1"])'))
-        .filter(el => visible(el) && !el.disabled && !['hidden'].includes(el.type));
+      const interactive = Array.from(scope.querySelectorAll(INTERACTIVE + ', [tabindex]:not([tabindex="-1"])'))
+        .filter(el => visible(el) && !el.disabled);
+      // A neighbour only counts as crowding if it lives in the same layer: a
+      // fixed bar the target happens to be scrolled under is a reachability
+      // matter (check 9), not a spacing one.
+      const fixedRoot = el => { for (let p = el; p && p !== document.body; p = p.parentElement) if (getComputedStyle(p).position === 'fixed') return p; return null; };
+      const rects = interactive.map(el => ({ el, r: el.getBoundingClientRect(), layer: fixedRoot(el) }));
       const isInlineTextLink = el => el.tagName === 'A' && getComputedStyle(el).display === 'inline' && el.parentElement && (el.parentElement.textContent || '').trim().length > (el.textContent || '').trim().length + 10;
-      const tooSmall = [], hard = [];
-      for (const el of interactive) {
-        if (isInlineTextLink(el)) continue;
-        const r = el.getBoundingClientRect();
-        // Effective target can be enlarged by a padded parent that is the real hit area (e.g. icon inside a padded button) — measure the closest interactive ancestor instead of the icon itself
-        const w = r.width, h = r.height;
-        if (w < rules.hardMinTapTarget || h < rules.hardMinTapTarget) hard.push(el);
-        else if (w < rules.minTapTarget || h < rules.minTapTarget) tooSmall.push(el);
+      const crowdedBy = ({ el, r }) => {
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2, h = rules.hardMinTapTarget / 2;
+        const box = { l: cx - h, t: cy - h, r: cx + h, b: cy + h };
+        const layer = fixedRoot(el);
+        return rects.find(o => o.el !== el && o.layer === layer && !el.contains(o.el) && !o.el.contains(el) && o.r.left < box.r && o.r.right > box.l && o.r.top < box.b && o.r.bottom > box.t);
+      };
+      const hard = [], spaced = [], tooSmall = [];
+      for (const t of rects) {
+        if (isInlineTextLink(t.el)) continue;
+        const under24 = t.r.width < rules.hardMinTapTarget || t.r.height < rules.hardMinTapTarget;
+        const under44 = t.r.width < rules.minTapTarget || t.r.height < rules.minTapTarget;
+        if (under24) { const n = crowdedBy(t); if (n) hard.push({ el: t.el, n: n.el }); else spaced.push(t.el); }
+        else if (under44) tooSmall.push(t.el);
       }
-      if (hard.length) push(phone ? 'fail' : 'warn', 'tap-target', `${hard.length} tap target(s) under ${rules.hardMinTapTarget}px (WCAG 2.5.8 minimum): ${hard.slice(0, 6).map(describe).join(' | ')}`);
-      if (tooSmall.length && touch) push('warn', 'tap-target', `${tooSmall.length} tap target(s) under ${rules.minTapTarget}px (Apple HIG comfortable minimum): ${tooSmall.slice(0, 6).map(describe).join(' | ')}`);
+      if (hard.length) push(phone ? 'fail' : 'warn', 'tap-target', `${hard.length} tap target(s) under ${rules.hardMinTapTarget}px AND crowded by a neighbour (WCAG 2.5.8): ${hard.slice(0, 6).map(h => `${describe(h.el)} ← ${describe(h.n)}`).join(' | ')}`);
+      if (touch && spaced.length) push('warn', 'tap-target', `${spaced.length} tap target(s) under ${rules.hardMinTapTarget}px (pass by spacing, still hard to hit): ${spaced.slice(0, 6).map(describe).join(' | ')}`);
+      if (touch && tooSmall.length) push('warn', 'tap-target', `${tooSmall.length} tap target(s) under ${rules.minTapTarget}px (Apple HIG comfortable minimum): ${tooSmall.slice(0, 6).map(describe).join(' | ')}`);
     } catch (e) { push('warn', 'tap-target', `check threw: ${e.message}`); }
 
     // 5. dialog fits the viewport (the "can't scroll to the top of the modal" bug)
@@ -204,7 +242,7 @@ async function auditPage(page, { phone, touch, scenario }) {
             const barRect = bar.getBoundingClientRect();
             const hidden = Array.from(document.querySelectorAll('a[href], button, input, select, textarea, [role="button"], p, li, td, h1, h2, h3, label'))
               .filter(el => visible(el) && !bar.contains(el) && !el.closest('[data-qa-allow-overflow]'))
-              .filter(el => { const cs = getComputedStyle(el); if (cs.position === 'fixed' || cs.position === 'sticky') return false; const r = el.getBoundingClientRect(); return r.bottom > barRect.top + 2 && r.top < barRect.bottom && r.height > 0 && (el.textContent || '').trim(); })
+              .filter(el => { const cs = getComputedStyle(el); if (cs.position === 'fixed' || cs.position === 'sticky') return false; const r = el.getBoundingClientRect(); return r.bottom > barRect.top + 2 && r.top < barRect.bottom && (el.textContent || '').trim(); })
               .filter((el, _, arr) => !arr.some(o => o !== el && o.contains(el)));
             if (hidden.length) push('fail', 'fixed-bar-overlap', `At the end of the page ${hidden.length} element(s) sit under the fixed bottom bar (${Math.round(br.height)}px tall) — add bottom padding to the scroll container. e.g. ${hidden.slice(0, 5).map(describe).join(' | ')}`, bar);
           }
@@ -217,7 +255,7 @@ async function auditPage(page, { phone, touch, scenario }) {
     if (phone) {
       try {
         const bars = all().filter(el => visible(el)).map(el => ({ cs: getComputedStyle(el), r: el.getBoundingClientRect(), el }))
-          .filter(({ cs, r }) => (cs.position === 'fixed' || cs.position === 'sticky') && r.width >= vw * 0.8 && r.height < vh / 2 && r.height > 0 && (r.top <= 1 || r.bottom >= vh - 1))
+          .filter(({ cs, r }) => (cs.position === 'fixed' || cs.position === 'sticky') && r.width >= vw * 0.8 && r.height < vh / 2 && (r.top <= 1 || r.bottom >= vh - 1))
           .filter(({ el }) => !overlay || !overlay.contains(el));
         const total = bars.reduce((s, b) => s + b.r.height, 0);
         if (total > vh * 0.35) push('warn', 'chrome-budget', `Fixed/sticky bars use ${Math.round(total)}px of a ${vh}px viewport (${Math.round(total / vh * 100)}%). ${bars.map(b => describe(b.el)).join(' | ')}`);
@@ -227,10 +265,12 @@ async function auditPage(page, { phone, touch, scenario }) {
     // 9. reachability: every interactive control in scope can be scrolled into
     //    view and is the thing you'd actually hit at its centre. Catches modals
     //    that overflow the screen, buttons under fixed bars, and overlays that
-    //    swallow taps. Run LAST because it scrolls things.
+    //    swallow taps. Controls inside a horizontally scrolling region are
+    //    reported by 2b instead (panning them in is legitimate). Runs LAST
+    //    because it scrolls things.
     try {
-      const interactive = Array.from(scope.querySelectorAll('a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [role="menuitem"]'))
-        .filter(el => visible(el) && !el.disabled && getComputedStyle(el).pointerEvents !== 'none');
+      const interactive = Array.from(scope.querySelectorAll(INTERACTIVE))
+        .filter(el => visible(el) && !el.disabled && getComputedStyle(el).pointerEvents !== 'none' && !hScrollAncestor(el));
       const bad = [];
       for (const el of interactive) {
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -239,8 +279,7 @@ async function auditPage(page, { phone, touch, scenario }) {
         if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) { bad.push({ el, why: `off-screen even after scrollIntoView (top=${Math.round(r.top)}, bottom=${Math.round(r.bottom)})` }); continue; }
         const hit = document.elementFromPoint(cx, cy);
         if (!hit) { bad.push({ el, why: 'nothing at its centre point' }); continue; }
-        if (hit === el || el.contains(hit) || hit.contains(el) && hit.closest('label') === hit) continue;
-        // clicking a <label> that wraps the control is fine; a sibling overlay is not
+        if (hit === el || el.contains(hit)) continue;
         if (el.tagName === 'INPUT' && hit.tagName === 'LABEL' && (hit.contains(el) || hit.htmlFor === el.id)) continue;
         bad.push({ el, why: `covered by ${describe(hit)}` });
       }
@@ -262,6 +301,7 @@ async function runActions(page, actions = []) {
     if (a.waitFor) await page.locator(a.waitFor).first().waitFor({ state: 'visible', timeout: 15000 });
     if (a.wait) await page.waitForTimeout(a.wait);
     if (a.evaluate) await page.evaluate(a.evaluate);
+    if (a.run) await a.run(page); // escape hatch: any Playwright steps
   }
 }
 
@@ -277,9 +317,9 @@ if (config.auth && existsSync(statePath)) {
   try { const st = JSON.parse(readFileSync(statePath, 'utf8')); if (Date.now() - (st.__savedAt || 0) < (config.auth.maxAgeMs || 12 * 3600e3)) authState = st; } catch { /* ignore */ }
 }
 
+// Returns 'ok' (already signed in), 'logged-in' (just signed in — caller must
+// re-navigate) or false (cannot sign in).
 async function ensureAuth(context, page, vpName) {
-  // Returns 'ok' (already signed in), 'logged-in' (just signed in — caller must
-  // re-navigate) or false (cannot sign in).
   if (!config.auth) return 'ok';
   const loggedOut = await config.auth.isLoggedOut(page);
   if (!loggedOut) return 'ok';
@@ -289,6 +329,53 @@ async function ensureAuth(context, page, vpName) {
   console.log(ok ? 'ok' : 'FAILED');
   if (ok) { authState = await context.storageState(); authState.__savedAt = Date.now(); writeFileSync(statePath, JSON.stringify(authState)); }
   return ok ? 'logged-in' : false;
+}
+
+async function runScenario({ context, page, sc, vp, vpName, theme, phone, consoleErrors }) {
+  const label = `${sc.name} @ ${vpName}${theme !== 'light' ? ` (${theme})` : ''}`;
+  const rec = { scenario: sc.name, viewport: vpName, theme, width: vp.width, height: vp.height, findings: [], shots: [], skipped: false };
+  results.push(rec);
+  try {
+    await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
+    if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
+    if (!sc.public) {
+      const auth = await ensureAuth(context, page, vpName);
+      if (!auth) { rec.skipped = 'auth'; console.log(`  SKIP ${label} — not signed in (set the auth env vars in mobileqa.config.mjs)`); return; }
+      if (auth === 'logged-in') {
+        // Only navigate again after an actual login. Never interrupt a page that
+        // is still bootstrapping — some apps treat an aborted session fetch as
+        // "signed out".
+        await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
+        if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
+      }
+    }
+    if (sc.waitFor) await page.locator(sc.waitFor).first().waitFor({ state: 'visible', timeout: 20000 });
+    await page.waitForTimeout(sc.settle ?? config.settle ?? 600);
+    await runActions(page, sc.actions);
+    if (sc.waitForAfter) await page.locator(sc.waitForAfter).first().waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForTimeout(300);
+
+    if (takeShots) {
+      const stem = `${sc.name}--${vpName}${theme !== 'light' ? `--${theme}` : ''}`;
+      const p1 = join(shotsDir, `${stem}.png`);
+      await page.screenshot({ path: p1, fullPage: false });
+      rec.shots.push(p1);
+      const h = await page.evaluate(() => document.documentElement.scrollHeight);
+      if (h > vp.height + 20 && h <= 6000 && !sc.noFullPage) {
+        const p2 = join(shotsDir, `${stem}--full.png`);
+        await page.screenshot({ path: p2, fullPage: true });
+        rec.shots.push(p2);
+      }
+    }
+    const { findings, meta } = await auditPage(page, { phone, touch: vp.width <= rules.touchMaxWidth, scenario: sc.name });
+    rec.findings = findings; rec.meta = meta;
+    if (consoleErrors.length) { rec.findings.push({ level: 'warn', rule: 'page-error', msg: consoleErrors.splice(0).join(' | ').slice(0, 300) }); }
+    const fails = findings.filter(f => f.level === 'fail').length, warns = findings.filter(f => f.level === 'warn').length;
+    console.log(`  ${fails ? 'FAIL' : ' ok '} ${label}${fails ? ` — ${fails} fail` : ''}${warns ? ` (${warns} warn)` : ''}`);
+  } catch (e) {
+    rec.findings.push({ level: 'fail', rule: 'scenario-error', msg: `scenario threw: ${e.message.split('\n')[0]}` });
+    console.log(`  FAIL ${label} — ${e.message.split('\n')[0]}`);
+  }
 }
 
 for (const vpName of wantViewports) {
@@ -302,51 +389,17 @@ for (const vpName of wantViewports) {
     const consoleErrors = [];
     page.on('pageerror', e => consoleErrors.push(String(e.message || e)));
     for (const sc of scenarios) {
-      if ((sc.phoneOnly && !phone) || (sc.desktopOnly && phone)) continue;
-      const label = `${sc.name} @ ${vpName}${theme !== 'light' ? ` (${theme})` : ''}`;
-      const rec = { scenario: sc.name, viewport: vpName, theme, width: vp.width, height: vp.height, findings: [], shots: [], skipped: false };
-      results.push(rec);
-      try {
-        await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
-        if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
-        if (!sc.public) {
-          const auth = await ensureAuth(context, page, vpName);
-          if (!auth) { rec.skipped = 'auth'; console.log(`  SKIP ${label} — not signed in (set the auth env vars in mobileqa.config.mjs)`); continue; }
-          if (auth === 'logged-in') {
-            // Only navigate again after an actual login. Never interrupt a page
-            // that is still bootstrapping — some apps treat an aborted session
-            // fetch as "signed out".
-            await page.goto(base + sc.path, { waitUntil: 'domcontentloaded' });
-            if (theme !== 'light' && config.applyTheme) { await config.applyTheme(page, theme); }
-          }
-        }
-        if (sc.waitFor) await page.locator(sc.waitFor).first().waitFor({ state: 'visible', timeout: 20000 });
-        await page.waitForTimeout(sc.settle ?? config.settle ?? 600);
-        await runActions(page, sc.actions);
-        if (sc.waitForAfter) await page.locator(sc.waitForAfter).first().waitFor({ state: 'visible', timeout: 15000 });
-        await page.waitForTimeout(300);
-
-        if (takeShots) {
-          const stem = `${sc.name}--${vpName}${theme !== 'light' ? `--${theme}` : ''}`;
-          const p1 = join(shotsDir, `${stem}.png`);
-          await page.screenshot({ path: p1, fullPage: false });
-          rec.shots.push(p1);
-          const h = await page.evaluate(() => document.documentElement.scrollHeight);
-          if (h > vp.height + 20 && h <= 6000 && !sc.noFullPage) {
-            const p2 = join(shotsDir, `${stem}--full.png`);
-            await page.screenshot({ path: p2, fullPage: true });
-            rec.shots.push(p2);
-          }
-        }
-        const { findings, meta } = await auditPage(page, { phone, touch: vp.width <= 1024, scenario: sc.name });
-        rec.findings = findings; rec.meta = meta;
-        if (consoleErrors.length) { rec.findings.push({ level: 'warn', rule: 'page-error', msg: consoleErrors.splice(0).join(' | ').slice(0, 300) }); }
-        const fails = findings.filter(f => f.level === 'fail').length, warns = findings.filter(f => f.level === 'warn').length;
-        console.log(`  ${fails ? 'FAIL' : ' ok '} ${label}${fails ? ` — ${fails} fail` : ''}${warns ? ` (${warns} warn)` : ''}`);
-      } catch (e) {
-        rec.findings.push({ level: 'fail', rule: 'scenario-error', msg: `scenario threw: ${e.message.split('\n')[0]}` });
-        console.log(`  FAIL ${label} — ${e.message.split('\n')[0]}`);
+      if ((sc.phoneOnly && !phone) || (sc.desktopOnly && phone) || (sc.maxWidth && vp.width > sc.maxWidth) || (sc.minWidth && vp.width < sc.minWidth)) continue;
+      if (sc.fresh) {
+        // A brand-new, signed-out context (e.g. to exercise the login screen).
+        const fctx = await browser.newContext(contextOptions(vp));
+        const fpage = await fctx.newPage();
+        const ferr = []; fpage.on('pageerror', e => ferr.push(String(e.message || e)));
+        await runScenario({ context: fctx, page: fpage, sc, vp, vpName, theme, phone, consoleErrors: ferr });
+        await fctx.close();
+        continue;
       }
+      await runScenario({ context, page, sc, vp, vpName, theme, phone, consoleErrors });
     }
     await context.close();
   }

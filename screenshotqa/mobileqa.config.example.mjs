@@ -83,7 +83,7 @@ export default {
 
   scenarios: [
     // ---- public (always run) ----
-    { name: 'qa-login', path: '/', public: true, waitFor: 'input[type="password"]' },
+    { name: 'qa-login', path: '/', public: true, fresh: true, waitFor: 'input[type="password"]' },
     { name: 'qa-sandbox', path: '/__qa', public: true, waitFor: 'h1' },
     { name: 'qa-sandbox-tall-modal', path: '/__qa?modal=tall', public: true, waitFor: 'h2:has-text("Tall Form")' },
     { name: 'qa-sandbox-confirm', path: '/__qa?modal=confirm', public: true, waitFor: 'h2:has-text("Delete thing")' },
@@ -92,17 +92,30 @@ export default {
     { name: 'home', path: '/home', waitFor: 'main' },
     { name: 'dashboard', path: '/dashboard', waitFor: 'main' },
     { name: 'projects', path: '/projects', waitFor: 'main' },
-    { name: 'project-detail', path: '/projects', waitFor: 'main', actions: [{ click: 'main a[href^="/projects/"]' }, { waitFor: 'main h1, main h2' }, { wait: 800 }] },
-    { name: 'project-add-item-modal', path: '/projects', waitFor: 'main', actions: [{ click: 'main a[href^="/projects/"]' }, { wait: 800 }, { click: 'button:has-text("Add Item")' }, { waitFor: '[role="dialog"]' }, { wait: 600 }] },
+    { name: 'project-detail', path: '/projects', waitFor: 'main a[href^="/projects/"]:not([href="/projects/new"])', actions: [{ click: 'main a[href^="/projects/"]:not([href="/projects/new"])' }, { wait: 1000 }] },
+    { name: 'project-add-item-modal', path: '/projects', waitFor: 'main a[href^="/projects/"]:not([href="/projects/new"])', actions: [{ click: 'main a[href^="/projects/"]:not([href="/projects/new"])' }, { wait: 1000 }, { click: 'button:has-text("Add Item")' }, { waitFor: '[role="dialog"]' }, { wait: 600 }] },
+    // EditItemDrawer lives on a project page; walk the project list until one has items.
+    { name: 'project-edit-item-drawer', path: '/projects', waitFor: 'main a[href^="/projects/"]:not([href="/projects/new"])', actions: [{ run: async (page) => {
+      const hrefs = await page.locator('main a[href^="/projects/"]:not([href="/projects/new"])').evaluateAll(els => els.map(a => a.getAttribute('href')));
+      for (const href of hrefs.slice(0, 8)) {
+        await page.goto(page.url().replace(/\/projects.*$/, '') + href, { waitUntil: 'domcontentloaded' });
+        await page.locator('main h2:has-text("Items")').first().waitFor({ timeout: 15000 });
+        await page.waitForTimeout(600);
+        const pencil = page.locator('main section:has(h2:has-text("Items")) button:has(svg.lucide-pencil), main div:has(> h2:has-text("Items")) ~ * button:has(svg.lucide-pencil), main table:below(h2:has-text("Items")) button:has(svg.lucide-pencil)').first();
+        if (await pencil.count()) { await pencil.click(); await page.locator('h2:has-text("Edit Item")').waitFor({ timeout: 10000 }); return; }
+      }
+      throw new Error('no project with items found in the first 8 projects');
+    } }, { wait: 600 }] },
     { name: 'tasks', path: '/tasks', waitFor: 'main' },
     { name: 'tasks-add-modal', path: '/tasks', waitFor: 'main', actions: [{ click: 'main button.btn-primary:has-text("Add")' }, { waitFor: '[role="dialog"]' }, { wait: 600 }] },
-    { name: 'task-detail', path: '/tasks', waitFor: 'main', actions: [{ click: 'main a[href^="/tasks/"]' }, { wait: 800 }] },
+    // Tasks open in the EditTaskDrawer (a right-side drawer), not a page.
+    { name: 'task-edit-drawer', path: '/tasks', waitFor: 'main button:has(svg.lucide-pencil)', actions: [{ click: 'main button:has(svg.lucide-pencil)' }, { waitFor: 'h2:has-text("Edit Task")' }, { wait: 600 }] },
     { name: 'inventory', path: '/inventory', waitFor: 'main' },
     // The bug that started this suite: the Add Item modal on a phone.
     { name: 'inventory-add-item-modal', path: '/inventory', waitFor: 'main', actions: [{ click: 'main button.btn-primary:has-text("Add Item")' }, { waitFor: '[role="dialog"]' }, { wait: 600 }] },
-    { name: 'inventory-detail', path: '/inventory', waitFor: 'main', actions: [{ click: 'main a[href^="/inventory/"]' }, { wait: 800 }] },
+    { name: 'inventory-detail', path: '/inventory', waitFor: 'main a[href^="/inventory/"]:not([href="/inventory/new"])', actions: [{ click: 'main a[href^="/inventory/"]:not([href="/inventory/new"])' }, { wait: 1000 }] },
     { name: 'members', path: '/members', waitFor: 'main' },
-    { name: 'member-detail', path: '/members', waitFor: 'main', actions: [{ click: 'main a[href^="/members/"]' }, { wait: 800 }] },
+    { name: 'member-edit', path: '/members', waitFor: 'main a[href^="/members/"]', actions: [{ click: 'main a[href^="/members/"]' }, { wait: 1000 }] },
     { name: 'tags', path: '/tags', waitFor: 'main' },
     { name: 'tags-modal', path: '/tags', waitFor: 'main', actions: [{ click: 'main button:has-text("Add")' }, { waitFor: '[role="dialog"]' }, { wait: 400 }] },
     { name: 'event-years', path: '/event-years', waitFor: 'main' },
@@ -115,7 +128,7 @@ export default {
     { name: 'decisions', path: '/decisions', waitFor: 'main' },
     { name: 'camp-roles', path: '/camp-roles', waitFor: 'main' },
     // Mobile chrome: the More sheet and the sidebar drawer
-    { name: 'mobile-more-menu', path: '/home', waitFor: 'main', actions: [{ click: 'nav button:has-text("More")' }, { wait: 500 }], phoneOnly: true },
-    { name: 'sidebar-drawer', path: '/home', waitFor: 'main', actions: [{ click: 'header button[aria-label*="menu" i], header button:has(svg.lucide-menu)' }, { wait: 500 }] },
+    { name: 'mobile-more-menu', path: '/home', waitFor: 'main', actions: [{ click: 'nav button:has-text("More")' }, { wait: 500 }], maxWidth: 1023 },
+    { name: 'sidebar-drawer', path: '/home', waitFor: 'main', actions: [{ click: 'header button[aria-label*="menu" i], header button:has(svg.lucide-menu)' }, { wait: 500 }], maxWidth: 1023 }, // below lg the sidebar is a drawer
   ],
 };
