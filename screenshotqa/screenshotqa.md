@@ -85,6 +85,92 @@ Most bugs hide in populated states, not the empty default. Before shooting:
 - States — empty, loading, error, and long-content wrapping, not just the happy path.
 - Match to ask — does it do the specific thing requested, at the widths it'll be used?
 
+## Mobile compatibility suite — MANDATORY before every commit that touches UI
+
+A screenshot at 390px is necessary but not sufficient. Phones fail in ways a
+static PNG hides: a modal taller than the screen whose top you can't scroll to,
+a submit button under the fixed bottom nav, iOS zooming the page because an
+input is 14px, tap targets a thumb can't hit, `100vh` that doesn't match the
+real viewport behind Safari's toolbars. The **mobile QA suite** in this folder
+catches those automatically, and a **commit gate** refuses UI commits until it
+has passed. This exists because the prompter had to report "I can't scroll to
+the top of the modal or press submit on my phone" — that must never be their job.
+
+### Files (in this skill folder — copy into the repo)
+
+| File | Goes to | Purpose |
+|---|---|---|
+| `mobileqa.mjs` | `scripts/mobileqa.mjs` | The engine: real phone emulation (viewport + touch + mobile UA + DPR), screenshots per scenario × viewport × theme, in-page checks, report, `last-pass.json`. |
+| `mobileqa-gate.mjs` | `scripts/mobileqa-gate.mjs` | Hashes every UI source file; exits non-zero unless the suite PASSED on exactly the current source. |
+| `mobileqa.config.example.mjs` | `mobileqa.config.mjs` (repo root) | Base URL, viewports, scenarios (one per route + one per modal/drawer/sheet), auth via the app's own login screen, theme hook. |
+| `pre-commit` | `.githooks/pre-commit` | Git hook: staged UI files ⇒ gate must pass. Activate with `git config core.hooksPath .githooks` (also as the `prepare` npm script). |
+| `claude-hook-mobileqa-gate.sh` | `~/.claude/hooks/mobileqa-gate.sh` | Global Claude Code PreToolUse hook on `git commit` (already installed on this machine; `~/.claude/settings.json`). Blocks commits in any web repo that lacks the suite, and stale-pass commits in repos that have it. |
+
+**Install in a new repo (do this the first time you touch any UI in it):**
+
+```
+npm i -D playwright-core
+cp <skill>/mobileqa.mjs <skill>/mobileqa-gate.mjs scripts/
+cp <skill>/mobileqa.config.example.mjs mobileqa.config.mjs   # then edit base/routes/auth
+mkdir -p .githooks && cp <skill>/pre-commit .githooks/ && chmod +x .githooks/pre-commit
+git config core.hooksPath .githooks
+# package.json: "mobileqa": "node scripts/mobileqa.mjs", "mobileqa:gate": "node scripts/mobileqa-gate.mjs",
+#               "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
+echo ".mobileqa/" >> .gitignore
+```
+
+Add a **dev-only component sandbox route** (e.g. `/__qa`, registered only when
+`import.meta.env.DEV`) that renders the shared primitives — the modal with a
+form taller than a phone, the confirm dialog, inputs, buttons — with no auth and
+no data. It gives the suite something that always runs even when the signed-in
+scenarios are blocked on credentials, and it's where a shared-component bug is
+proven fixed. (See camps-ops `src/pages/dev/QaSandbox.tsx` for the pattern.)
+
+### Run it
+
+```
+npm run mobileqa                       # everything: all scenarios × viewports × light/dark
+npm run mobileqa -- --only add-item    # one scenario family
+npm run mobileqa -- --viewports phoneSmall,desktop --themes light
+npm run mobileqa -- --no-shots         # checks only
+```
+
+Then **open `.mobileqa/report.md`** and **look at the PNGs in `.mobileqa/shots/`**
+the same way you'd review any screenshot (checklist above). A green run is the
+floor, not the ceiling — the checks can't see ugly.
+
+### What it checks (FAIL blocks the commit; warn is reported)
+
+- **viewport-meta** — present, `width=device-width`, doesn't disable pinch zoom.
+- **h-overflow** — document wider than the viewport, with the outermost offenders named.
+- **dialog-fit** — any full-screen overlay whose content starts above the viewport or runs below it with no scrollable region. (The exact "can't scroll to the top of the modal" bug.)
+- **unreachable-control** — every button/link/input in the topmost layer can be scrolled into view and is the element actually hit at its centre (catches fixed bars, stray overlays, `pointer-events` mistakes).
+- **fixed-bar-overlap** — at the end of the page, content sits under a fixed bottom bar (missing bottom padding).
+- **control-font** (phones) — any input/select/textarea under 16px ⇒ iOS focus-zoom.
+- **tap-target** — under 24px fails on phones (WCAG 2.5.8); under 44px warns on touch widths (Apple HIG).
+- **text-size** (warn) — text under 11px. **chrome-budget** (warn) — fixed/sticky bars eating >35% of a phone screen. **page-error** (warn) — uncaught JS errors.
+
+### Build rules that keep the suite green (put them in the CSS once, per app)
+
+- **Modals/sheets:** `max-height: calc(100dvh - safe-area)`, `display:flex; flex-direction:column`, header `shrink-0`, body `overflow-y:auto; overscroll-behavior:contain`, `role="dialog" aria-modal="true"`. On phones dock to the bottom edge (`items-end sm:items-center`).
+- **Viewport height:** `dvh`, never bare `100vh`, for anything that must fit the screen.
+- **Safe areas:** `viewport-fit=cover` in the meta tag; `env(safe-area-inset-bottom)` on fixed bottom bars and on the scroll container's bottom padding.
+- **Inputs ≥ 16px on phones** (`@media (max-width:767px) { input, select, textarea { font-size: max(16px, 1em) } }`).
+- **Tap targets ≥ 44px on touch widths** (`min-height: 44px` on inputs and buttons below `lg`).
+- **Hover-only affordances** (`opacity-0 group-hover:opacity-100`) must be visible under `@media (hover: none)`.
+- **Tables:** wrap in `overflow-x-auto`, or collapse to cards below `md`.
+- **Multi-column grids** in forms: `grid-cols-1 sm:grid-cols-2`, never bare `grid-cols-3` on a phone.
+- **HTML5 drag-and-drop** does not fire on iOS/Android touch — every reorder/assign needs a tap alternative (move up/down, a picker) or a pointer-events implementation.
+
+### Auth for the signed-in scenarios
+
+Follow "Auth-gated apps" above: the config logs in through the app's **own**
+login screen with credentials from env (`.env`, non-`VITE_`, gitignored), and
+caches the signed-in browser state in `.mobileqa/state.json`. Never fetch service
+keys or mint sessions to get around the gate. If the credentials aren't set, the
+authed scenarios are **skipped and the run does not count as a pass** — say so in
+the ship report and ask the prompter for the one-time env setup.
+
 ## Zero-dependency fallback (system Chrome, no install)
 
 If a repo can't take even one devDep, drive the installed Chrome directly:

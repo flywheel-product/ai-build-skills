@@ -525,7 +525,14 @@ Apply colors exclusively through CSS variables so theme switching is automatic.
 
 ### Touch Considerations
 
-- Ensure tap targets are at least 44px for mobile interactions.
+- Ensure tap targets are at least 44px for mobile interactions (set `min-height: 44px` on inputs and buttons below the desktop breakpoint).
+- Form controls render at **16px or larger on phones** — smaller text makes iOS Safari zoom the page on focus and strands the user mid-form.
+- **Modals and sheets are capped at the dynamic viewport (`100dvh` minus safe areas), header pinned, body scrolls.** A centred modal with no max-height overflows above the screen on a phone and its top becomes unreachable. Dock sheets to the bottom edge on phones.
+- Use `dvh` (not `100vh`) for anything sized to the screen; add `viewport-fit=cover` and pad fixed bottom bars and the page bottom with `env(safe-area-inset-bottom)`.
+- Anything revealed on hover (`opacity-0 group-hover:opacity-100`) must be visible under `@media (hover: none)` — touch screens never hover.
+- HTML5 drag-and-drop does not fire on touch; every reorder/assign needs a tap alternative or a pointer-events implementation.
+- Multi-column form grids collapse to one column on phones (`grid-cols-1 sm:grid-cols-2`).
+- **Verify all of this with the mobile compatibility suite in the `screenshotqa` skill (`npm run mobileqa`) before committing** — it is a commit gate, not optional.
 - Drag handles should be generously sized on touch devices.
 - Dropdowns should be large enough to tap options without error.
 

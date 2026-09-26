@@ -1,0 +1,8 @@
+#!/bin/sh
+# Mobile QA commit gate — see scripts/mobileqa-gate.mjs and the /screenshotqa skill.
+# Blocks a commit that touches UI source unless `npm run mobileqa` has PASSED on
+# exactly this UI source. Bypass (emergencies only): git commit --no-verify
+if git diff --cached --name-only | grep -Eq '^(src/|index\.html|public/|tailwind\.config\.js|postcss\.config\.js)'; then
+  node scripts/mobileqa-gate.mjs || exit 1
+fi
+exit 0

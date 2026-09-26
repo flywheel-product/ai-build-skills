@@ -21,6 +21,7 @@ This guide is **generic to any app.** Where something is specific to one app, it
 A clean compile, a 200 response, and reading the code do **not** prove the change is right.
 
 - **UI work → use the `screenshotqa` skill.** Render the affected screen, look at the PNG, and review it against exactly what was asked — at desktop *and* mobile widths, and in dark mode if the app themes. Fix and re-shoot until it's right. Only say it's done once you've seen it. Client-rendered layout/CSS bugs show up only when you render and look.
+- **Mobile is a gate, not a nice-to-have.** Before ANY commit that touches UI, run the **mobile compatibility suite** from the `screenshotqa` skill (`npm run mobileqa`) and get a PASS — real phone emulation, every route and every modal/drawer, light and dark, with automated checks for modals taller than the screen, unreachable controls, horizontal overflow, iOS input zoom, tap targets and safe areas. A git pre-commit hook and a global Claude Code hook enforce this (`~/.claude/hooks/mobileqa-gate.sh`): a commit with UI changes is refused until the suite has passed on that exact source, and a web repo without the suite is refused until it's installed. **If a repo doesn't have the suite yet, install it first** (the skill has the files and the one-time steps) — including a dev-only `/__qa` component sandbox so shared primitives can be proven at phone widths with no credentials. Never `--no-verify` around it. This rule exists because the prompter had to report a phone-only modal bug (couldn't reach the top of the form or the submit button); that is exactly the kind of round-trip this playbook is for.
 - **Behavioral work → run it.** Exercise the real path (or a behavioral/“verify” test) and confirm the actual output, not the intended one.
 - The prompter should not be the one to spot your bugs.
 
@@ -36,7 +37,7 @@ A clean compile, a 200 response, and reading the code do **not** prove the chang
 ## 3. Build discipline
 
 - Address each of the prompter's asks **fully**; in a multi-part request, track every sub-ask and finish all of them — don't move on until each specific thing is done and verified.
-- After a change: types/compiler clean (e.g. `npx tsc --noEmit`), the app serves 200, and (for UI) the screenshot looks right.
+- After a change: types/compiler clean (e.g. `npx tsc --noEmit`), the app serves 200, (for UI) the screenshot looks right, and (for UI) `npm run mobileqa` passes.
 - **Never run a production build while the dev server is live** if they share a build dir (e.g. Next's `.next/`) — it corrupts the running dev server and makes the UI look broken. Restart after, or verify the production build elsewhere.
 - Reuse existing components and CSS; match the surrounding code's idioms instead of forking.
 - Watch base element styles that bite — e.g. a global `input, select { width: 100% }` means any custom select/input needs an explicit `width: auto` or it stretches and breaks its row.
@@ -72,7 +73,7 @@ If it needs a scope, token, or API enablement the prompter controls, first **pro
 
 Builder is the conductor; delegate specialized work to companion skills so each concern has one source of truth. Use whichever of these you have available:
 
-- **Visual verification / screenshots → the `screenshotqa` skill** (in this collection) — the render-and-review loop (§1).
+- **Visual verification / screenshots / the mobile compatibility suite + commit gate → the `screenshotqa` skill** (in this collection) — the render-and-review loop (§1) and the mandatory pre-commit mobile QA.
 - **Anything user-visible — layout, interaction, look-and-feel → a `style`/UX skill**; for brand identity (colors, type, logo) → your own brand skill.
 - **User-facing copy → your own voice/copy skill.**
 - **Stack choice, new-app scaffolding, deploy/DB/analytics setup → your own architecture skill.**
