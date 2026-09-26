@@ -119,6 +119,10 @@ git config core.hooksPath .githooks
 echo ".mobileqa/" >> .gitignore
 ```
 
+Scenario options: `path`, `public` (no auth), `fresh` (brand-new signed-out context — use it for the login screen), `waitFor`, `actions` (`click`, `tap`, `fill`, `press`, `waitFor`, `wait`, `evaluate`, or `run: async (page) => {}` for anything Playwright can do), `waitForAfter`, `settle`, `noFullPage`, `phoneOnly`, `desktopOnly`, `minWidth`, `maxWidth`. Cover **every route and every modal/drawer/sheet/menu** — the overlays are where phones break.
+
+**Pitfall learned the hard way:** never navigate away from a page that is still bootstrapping its session. Some apps treat an aborted session fetch as "signed out" and wipe the stored identity (camps-ops did — fixed in its SessionProvider). The engine re-navigates only right after an actual login, and the config's `isLoggedOut` should wait for the app to settle on a known state rather than checking after a fixed delay.
+
 Add a **dev-only component sandbox route** (e.g. `/__qa`, registered only when
 `import.meta.env.DEV`) that renders the shared primitives — the modal with a
 form taller than a phone, the confirm dialog, inputs, buttons — with no auth and
@@ -147,7 +151,8 @@ floor, not the ceiling — the checks can't see ugly.
 - **unreachable-control** — every button/link/input in the topmost layer can be scrolled into view and is the element actually hit at its centre (catches fixed bars, stray overlays, `pointer-events` mistakes).
 - **fixed-bar-overlap** — at the end of the page, content sits under a fixed bottom bar (missing bottom padding).
 - **control-font** (phones) — any input/select/textarea under 16px ⇒ iOS focus-zoom.
-- **tap-target** — under 24px fails on phones (WCAG 2.5.8); under 44px warns on touch widths (Apple HIG).
+- **tap-target** — under 24px *and* crowded by a neighbour in the same layer fails on phones (WCAG 2.5.8 with its spacing exception); under 24px but spaced, or under 44px, warns on touch widths (Apple HIG).
+- **wide-region** (warn, phones) — a region that must be panned horizontally (a wide table), with how much a sticky first column leaves to pan in. Controls inside it are exempt from the reachability check.
 - **text-size** (warn) — text under 11px. **chrome-budget** (warn) — fixed/sticky bars eating >35% of a phone screen. **page-error** (warn) — uncaught JS errors.
 
 ### Build rules that keep the suite green (put them in the CSS once, per app)
