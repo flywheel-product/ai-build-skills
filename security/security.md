@@ -31,6 +31,7 @@ When this skill runs, you are doing a **real audit of the current project**, not
 4. **Never run mutating or network commands without permission.** The `curl` probes in "Live verification" hit a live server and the signup probe creates a test user — show the command and ask before running, or hand it to the prompter to run themselves.
 5. **Report severity-first.** Lead with a triage table (below), then the per-item detail. End with the **top 3 things to fix right now**.
 6. **Trust, but verify.** If a previous AI audit said something is secure, re-check it — models routinely call insecure things secure. This is the single most important habit.
+7. **Running this skill means producing the report.** A "self-review against the checklist" while building, with no triage table and no per-item verdicts, does not count as having run `/security` — the prompter will (rightly) ask why the skill was not run. When a build/ship playbook says "run `/security` before the first deploy", emit the full report below, then fix what it finds.
 
 Output shape:
 ```
@@ -179,6 +180,7 @@ Add these on your host (Netlify `_headers` / `netlify.toml`, Vercel `vercel.json
 
 ### M4. Don't leak data in error messages or logs
 - Don't return raw DB errors or stack traces to the client. Don't `console.log` tokens, emails, JWTs, or PII (they end up in host logs and browser consoles).
+- **One-time links and codes never reach production logs** — magic links, password-reset links, invite codes, OTPs. A "print it instead of sending it" fallback for local dev (common when email isn't configured) must be gated on `NODE_ENV !== "production"`, not merely on "the email credential is missing": in production a missing or mis-named credential (e.g. a typo in the env var name) otherwise silently turns the host log into a sign-in page for anyone who can read logs. Check: `grep -rn "console\.\(log\|error\)" lib app | grep -iE "url|link|token|code"` and read each hit; then search the live host's logs for `token=` / `/verify?`.
 
 ### M5. CORS is scoped
 - Don't set `Access-Control-Allow-Origin: *` on anything that returns private data or accepts credentials. Echo only an allowlist of your own origins.
@@ -314,7 +316,9 @@ For drift over time (deps age, new tables ship without RLS), run the offline `se
 
 - **Firebase:** the anon config is public too; **Firestore/Storage Security Rules** are your RLS. Default-deny, then scope by `request.auth.uid`. Check for `allow read, write: if true;`. Never ship the Admin SDK / service account JSON to the client.
 - **Custom Node/Express/Next API routes:** there is no RLS — **every route must check the session and authorize the specific object** (C1–C2 become "auth middleware + ownership checks on every handler"). Watch for routes that trust `req.body.userId`.
-- **Next.js specifically:** keep secrets out of `NEXT_PUBLIC_*`; don't leak server-only data through props/`use client` components; verify Server Actions authorize the caller (they're public endpoints).
+- **Next.js specifically:** keep secrets out of `NEXT_PUBLIC_*`; don't leak server-only data through props/`use client` components; verify Server Actions authorize the caller (they're public endpoints). Quick sweep: list every `page.tsx`, Route Handler and exported server action and confirm each calls the session guard (`for f in $(find app -name page.tsx); do grep -qE "requireUser|getSession" $f || echo $f; done`, adapted to the guard's name) — the only acceptable misses are the login/verify pages themselves.
+- **Dev-only auth bypasses** (an env flag like `DEV_BYPASS_EMAIL` / `ADMIN_DEV_BYPASS` that makes local screenshots and mobile QA possible without signing in) must be fenced in **code** on `NODE_ENV !== "production"`, never only by "we won't set it in prod". Verify it the hard way: run a production build locally *with the bypass variable set* and confirm a signed-out visit still redirects to login.
+- **Custom-API live probes** (signed out, safe to run): protected page → `3xx` to login; protected API → `401`; fetch-by-id with a traversal id (`..%2F..%2Fetc%2Fpasswd`) → `401`/`404`, never `500` or a file; and the headers check below.
 - **All stacks:** C4 (no service/admin secret in client), C5 (no secrets in git), H1 (authorize the caller), H3 (no IDOR), H5 (rate limits), H6 (webhook signatures), and the entire 🟡/🟢 sections apply unchanged.
 
 ---
