@@ -23,7 +23,7 @@
 //
 // Scenario options: { name, path, public?, fresh? (new signed-out context),
 //   waitFor?, actions?: [{click|tap|fill|press|waitFor|wait|evaluate|run(page)}], waitForAfter?,
-//   settle?, noFullPage?, phoneOnly?, desktopOnly?, minWidth?, maxWidth? }
+//   settle?, noFullPage?, phoneOnly?, desktopOnly?, minWidth?, maxWidth?, devOnly? (skipped unless base is localhost) }
 
 import { chromium } from 'playwright-core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -390,6 +390,7 @@ for (const vpName of wantViewports) {
     page.on('pageerror', e => consoleErrors.push(String(e.message || e)));
     for (const sc of scenarios) {
       if ((sc.phoneOnly && !phone) || (sc.desktopOnly && phone) || (sc.maxWidth && vp.width > sc.maxWidth) || (sc.minWidth && vp.width < sc.minWidth)) continue;
+      if (sc.devOnly && !/localhost|127\.0\.0\.1/.test(base)) continue; // dev-only routes are not in production builds
       if (sc.fresh) {
         // A brand-new, signed-out context (e.g. to exercise the login screen).
         const fctx = await browser.newContext(contextOptions(vp));
