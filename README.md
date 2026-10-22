@@ -13,7 +13,7 @@ screenshotqa/
 ├── screenshotqa.md   ← the guide (the real content — readable by any AI or human)
 ├── SKILL.md          ← thin Claude adapter so the skill auto-triggers (points to the .md)
 ├── shot.mjs          ← any scripts the skill uses, right in the folder …
-└── mobileqa.mjs, pre-commit, …   ← … however many it takes (screenshotqa ships eight files)
+└── …                 ← … however many it takes (mobileqa ships six files)
 ```
 
 The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact. `SKILL.md` is just a ~3-line shim for Claude — strip it away and the skill still works anywhere. The full authoring convention — adapter template, footers, sibling references instead of absolute paths, where a skill lives, an audit checklist — is itself a skill: [skillwriter](skillwriter/skillwriter.md).
@@ -32,6 +32,7 @@ The guide keeps its own name (`screenshotqa.md`), so it's the canonical artifact
 |---|---|
 | [builder](builder/builder.md) | The build-practice playbook: be self-sufficient (verify/diagnose/fix before asking), build & ship discipline (compile clean, don't build over a live dev server, commit→push→live, version + release notes), and which companion skills to pull in when. |
 | [screenshotqa](screenshotqa/screenshotqa.md) | Render a UI and actually look at it — the screenshot-and-review loop, with a portable headless-Chrome helper, data-seeding, responsive + dark-mode checks, and a visual-QA checklist. |
+| [mobileqa](mobileqa/mobileqa.md) | The automated mobile compatibility suite — real phone emulation, every route and overlay, checks for modals taller than the screen, unreachable controls, iOS input zoom, tap targets, safe areas. Opt-in: runs only when the prompter asks. |
 | [style](style/style.md) | Universal style & usability standards for good, non-generic UI — interaction patterns, forms/tables, navigation, feedback states, accessibility, spacing/motion, light/dark, responsiveness. Brand-agnostic. |
 | [security](security/security.md) | Audit a web app against a practical security checklist — auth/RLS, exposed secrets, signups, storage, IDOR, webhooks, headers, XSS — with live-verification steps and a triage table. |
 | [theme](theme/theme.md) | Pick and fully commit to ONE distinct visual aesthetic from a curated library (Glassmorphism, Swiss, Neobrutalism, Cyberpunk, … plus brand-derived looks). For a deliberate, distinctive vibe when a UI isn't bound to a specific brand. |
