@@ -234,9 +234,16 @@ CORE PHILOSOPHY: Fight "Model Collapse" and "AI Slop." Do not converge on averag
 
 ## 6. Forms & validation
 
+### Complete Add Forms (no partial add screens)
+
+- **An "Add" form collects every field the item has, in one go.** Never ship a create step that takes only a name and makes the person find the new item afterwards to fill in the rest (description, lists, notes, links, attachments). That turns one task into two and loses their place.
+- Mark the required fields; everything else is optional on the form, but present. The form mirrors the item's edit view: same fields, same order, same controls (list editors, pickers, uploads).
+- After saving, show the new item where it lives (scroll to it or open it) so the person sees the result without hunting.
+- Inline quick-add (a single input that creates a row) is fine only when the item genuinely has nothing else to fill in, such as a tag or a to-do title. If it has more fields, quick-add must open the full form, not a stub.
+
 ### Modal Forms for Creation
 
-- Use centered modals for creating new entities. Keep the form focused on required fields only.
+- Use centered modals for creating new entities, holding the complete add form above.
 - Label format: uppercase, small text, muted color, positioned above the input.
 - Disable the submit button until all required fields have values.
 - Provide Cancel (secondary) and Create (primary) buttons at the bottom.
