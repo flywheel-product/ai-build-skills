@@ -198,9 +198,13 @@ CORE PHILOSOPHY: Fight "Model Collapse" and "AI Slop." Do not converge on averag
 
 ### Loading States
 
-- Show a centered spinner (animated icon) during initial data fetch.
+- Show a centered spinner (animated icon) during initial data fetch. If the project's brand guide defines its own loading indicator (a branded throbber), use that everywhere instead of a generic spinner; the brand owns what it looks like, this guide owns when it shows.
 - Use page-level loading for full-page data dependencies; inline loading for secondary data.
 - Apply a fade-in animation to prevent flash-of-content on fast connections.
+- Delay the indicator: keep it hidden for the first ~400ms, so fast responses never flash it. Once it appears, keep it up at least ~500ms so it doesn't blink on and off.
+- Give it `role="status"` and a screen-reader label ("Loading…", "Saving…"). For waits longer than a couple of seconds, add a short visible line saying what is happening.
+- Size it to its context: ~20–24px inside a button or row (the button keeps its width and is disabled while busy), ~48px for a panel, ~56–64px for a full page.
+- Under `prefers-reduced-motion`, replace movement with a gentle opacity pulse.
 
 ### Error States
 
