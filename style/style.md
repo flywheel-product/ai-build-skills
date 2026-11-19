@@ -206,6 +206,15 @@ CORE PHILOSOPHY: Fight "Model Collapse" and "AI Slop." Do not converge on averag
 - Size it to its context: ~20–24px inside a button or row (the button keeps its width and is disabled while busy), ~48px for a panel, ~56–64px for a full page.
 - Under `prefers-reduced-motion`, replace movement with a gentle opacity pulse.
 
+### Slow clicks always show the throbber
+
+- **Every click that waits on the server shows the throbber — no exceptions.** Any button, link or form submit that can take more than a moment (reading a calendar or other outside service, creating records, sending email, calling an AI, uploading, syncing) must tell the user to wait. A click with no visible response looks broken and gets clicked again.
+- **On the button itself:** the moment it's clicked, disable it (stops double-submits), keep its width, and swap its label for the throbber (~20–24px, in the button's text color). Don't wait the usual ~400ms here; the click needs an instant answer.
+- **Say what is happening** when it can take more than a couple of seconds: a short line next to or under the button ("Reading the calendar…", "Creating the team…"), and the same words as the throbber's screen-reader label.
+- **Build it once, reuse it:** one shared pending-submit button (in React/Next server-action forms, read `useFormStatus().pending`; for client fetches, a `busy` state set before the request and cleared in `finally`). Use it for every slow action rather than leaving some plain buttons.
+- Use the brand's throbber if the brand guide defines one; otherwise a simple spinner.
+- When the wait ends in an error, restore the button and show the error inline; never leave it stuck disabled.
+
 ### Error States
 
 - Display errors as inline banners (not modals) with: error icon, descriptive message, and a retry button.
