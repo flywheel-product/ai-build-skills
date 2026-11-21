@@ -422,6 +422,14 @@ Apply colors exclusively through CSS variables so theme switching is automatic.
 - Cards use: rounded corners, subtle shadow, surface background color, and a slight hover elevation.
 - Maintain consistent border-radius and shadow values across all card instances.
 
+### No Bubbles Inside Bubbles
+
+- **Never nest a bordered/tinted box inside another one.** A card is the one container; what lives in it is separated by spacing, a heading, or a hairline divider (`border-t`), not by another rounded box. A box in a box in a box reads as clutter and makes every level look equally important.
+- **Question every box before adding it.** Ask whether spacing and a heading would do the job. Use a box only when the content is a distinct object the user acts on as a unit (a card in a list, a modal, a callout that must interrupt). A section of a page is not a box.
+- **Links are text, not pills.** Show a link as icon + label in the link color. Reserve outlined or filled pill shapes for real buttons (actions), so people can tell "go somewhere" from "do something".
+- **Add/edit controls stay plain**: an "+ Link / + Image" row, or an Edit link, sits as text under its section; it does not get its own box.
+- **Read first, edit on request**: show saved values as normal text in the page's own type styles (a heading-size line for a headline value), with a small "Edit" link beside the label. Show the form field only while editing, and save on blur or Enter. Don't render read-mostly content as a stack of form boxes.
+
 ### Button Hierarchy
 
 - **Primary**: Filled with the accent color, slight lift on hover. Used for the single most important action. (Ensure label text meets AA contrast against the accent fill — see your brand skill's contrast table.)
